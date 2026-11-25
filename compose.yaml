@@ -1,0 +1,61 @@
+services:
+  app:
+    build: .
+    container_name: slamsync_app
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    environment:
+      COMPOSER_HOME: /tmp/composer
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      database:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  database:
+    image: mysql:8.4
+    container_name: slamsync_mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: slamsync
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: slamsync_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: database
+      PMA_PORT: 3306
+      # Connexion auto en root : OK en local, JAMAIS en production
+      PMA_USER: root
+      PMA_PASSWORD: root
+    depends_on:
+      database:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: slamsync_mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025" # Interface web (le SMTP 1025 reste interne au réseau Docker)
+
+volumes:
+  mysql_data:
